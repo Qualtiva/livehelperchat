@@ -21,6 +21,10 @@ if (isset($Params['user_parameters_unordered']['theme']) && (int)$Params['user_p
 	}
 }
 
+if (isset($Params['user_parameters_unordered']['er']) && (int)$Params['user_parameters_unordered']['er'] == 1){
+    $Result['er'] = true;  
+}
+
 try {
 
     $chat = erLhcoreClassChat::getSession()->load( 'erLhcoreClassModelChat', $Params['user_parameters']['chat_id']);
@@ -45,7 +49,7 @@ try {
 	        	$chat->support_informed = 1;
 	        	$chat->user_typing = time()-5;// Show for shorter period these status messages
 	        	$chat->is_user_typing = 1;
-	        	$chat->user_typing_txt = htmlspecialchars_decode(erTranslationClassLhTranslation::getInstance()->getTranslation('chat/userjoined','User has joined the chat!'),ENT_QUOTES);
+	        	$chat->user_typing_txt = htmlspecialchars_decode(erTranslationClassLhTranslation::getInstance()->getTranslation('chat/userjoined','User has joined the chat from popup chat window!'),ENT_QUOTES);
 
 	        	if ($chat->user_status == erLhcoreClassModelChat::USER_STATUS_PENDING_REOPEN && ($onlineuser = $chat->online_user) !== false) {
 	        		$onlineuser->reopen_chat = 0;
@@ -71,6 +75,7 @@ try {
 $Result['content'] = $tpl->fetch();
 $Result['pagelayout'] = 'userchat';
 $Result['is_sync_required'] = true;
+$Result['dynamic_height'] = true;
 
 $Result['path'] = array(array('title' => erTranslationClassLhTranslation::getInstance()->getTranslation('chat/chat','Chat started')))
 

@@ -4,7 +4,9 @@ $tpl = erLhcoreClassTemplate::getInstance( 'lhuser/new.tpl.php');
 
 $UserData = new erLhcoreClassModelUser();
 $UserDepartaments = isset($_POST['UserDepartament']) ? $_POST['UserDepartament'] : array();
-$show_all_pending = 0;
+$show_all_pending = 1;
+
+$tpl->set('tab',$Params['user_parameters_unordered']['tab'] == 'canned' ? 'tab_canned' : '');
 
 if (isset($_POST['Update_account']))
 {
@@ -37,6 +39,9 @@ if (isset($_POST['Update_account']))
 				ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
 		), 
 		'showAllPendingEnabled' => new ezcInputFormDefinitionElement(
+				ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
+		), 
+		'ReceivePermissionRequest' => new ezcInputFormDefinitionElement(
 				ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
 		), 
    		'JobTitle' => new ezcInputFormDefinitionElement(
@@ -159,14 +164,23 @@ if (isset($_POST['Update_account']))
     	$UserData->invisible_mode = 0;
     }
     
+    if ( $form->hasValidData( 'ReceivePermissionRequest' ) && $form->ReceivePermissionRequest == true ) {
+        $UserData->rec_per_req = 1;
+    } else {
+        $UserData->rec_per_req = 0;
+    }
+    
     $globalDepartament = array();
     
     if (isset($_POST['all_departments']) && $_POST['all_departments'] == 'on') {
     	$UserData->all_departments = 1;
     	$globalDepartament[] = 0;
     } else {
-    	$UserData->all_departments = 0;
+    	$UserData->all_departments = 0;    	
     }
+    
+    // Allow extension to do extra validation
+    erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.new_user',array('userData' => & $UserData, 'errors' => & $Errors));
     
     if (count($Errors) == 0)
     {
@@ -186,7 +200,11 @@ if (isset($_POST['Update_account']))
         {
            erLhcoreClassUserDep::addUserDepartaments($globalDepartament,$UserData->id,$UserData);
         }
-
+        
+        $UserData->departments_ids = implode(',', $globalDepartament);
+        erLhcoreClassUser::getSession()->update($UserData);
+        
+        
         erLhcoreClassModelGroupUser::removeUserFromGroups($UserData->id);
 
         foreach ($UserData->user_groups_id as $group_id) {
@@ -202,22 +220,35 @@ if (isset($_POST['Update_account']))
         	
         	erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_path',array('dir' => & $dir,'storage_id' => $UserData->id));
         	
-        	erLhcoreClassFileUpload::mkdirRecursive( $dir );
-        	$file = qqFileUploader::upload($_FILES,'UserPhoto',$dir);
-
+        	$response = erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_store', array('file_post_variable' => 'UserPhoto', 'dir' => & $dir, 'storage_id' => $UserData->id));
+        	 
+        	// There was no callbacks
+        	if ($response === false) {
+        		erLhcoreClassFileUpload::mkdirRecursive( $dir );
+        		$file = qqFileUploader::upload($_FILES,'UserPhoto',$dir);
+        	} else {
+        		$file = $response['data'];
+        	}
+        	
         	if ( empty($file["errors"]) ) {
         		$UserData->filename           = $file["data"]["filename"];
         		$UserData->filepath           = $file["data"]["dir"];
 
-        		erLhcoreClassImageConverter::getInstance()->converter->transform( 'photow_150', $UserData->file_path_server, $UserData->file_path_server );
-        		chmod($UserData->file_path_server, 0644);
-
+        		$response = erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_resize_150', array('mime_type' => $file["data"]['mime_type'],'user' => $UserData));
+        		
+        		if ($response === false) {
+        			erLhcoreClassImageConverter::getInstance()->converter->transform( 'photow_150', $UserData->file_path_server, $UserData->file_path_server );
+        			chmod($UserData->file_path_server, 0644);
+        		}
+        		
         		$UserData->saveThis();
         	}
         }
 
         erLhcoreClassModelUserSetting::setSetting('show_all_pending',$show_all_pending,$UserData->id);
-              
+        
+        erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.user_created',array('userData' => & $UserData));
+        
         erLhcoreClassModule::redirect('user/userlist');
         exit;
 

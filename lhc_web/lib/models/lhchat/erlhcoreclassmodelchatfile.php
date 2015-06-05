@@ -14,6 +14,7 @@ class erLhcoreClassModelChatFile {
                'extension'   	=> $this->extension,
                'chat_id'   		=> $this->chat_id,
                'user_id'   		=> $this->user_id,
+               'online_user_id' => $this->online_user_id,
                'date'   		=> $this->date,
               );
    }
@@ -43,8 +44,12 @@ class erLhcoreClassModelChatFile {
 	   		unlink($this->file_path_server);
 	   	}
 
-	   	erLhcoreClassFileUpload::removeRecursiveIfEmpty('var/', str_replace('var/', '', $this->file_path));
-
+	   	if ($this->file_path != '') {
+	   		erLhcoreClassFileUpload::removeRecursiveIfEmpty('var/', str_replace('var/', '', $this->file_path));
+	   	}
+	   	
+	   	erLhcoreClassChatEventDispatcher::getInstance()->dispatch('file.remove_file', array('chat_file' => & $this));
+	   	
 	   	erLhcoreClassChat::getSession()->delete($this);
    }
 
@@ -101,7 +106,6 @@ class erLhcoreClassModelChatFile {
    		}
    }
 
-
    public function saveThis() {
    		erLhcoreClassChat::getSession()->saveOrUpdate($this);
    }
@@ -113,7 +117,10 @@ class erLhcoreClassModelChatFile {
    public $file_path = null;
    public $size = null;
    public $extension = null;
-   public $chat_id = null;
+   public $date = 0;
+   public $user_id = 0;
+   public $chat_id = 0;
+   public $online_user_id = 0;
 }
 
 ?>

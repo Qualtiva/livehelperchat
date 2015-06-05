@@ -22,6 +22,19 @@ class erLhcoreClassBBCode
     	return $matches[1] . "<a href=\"$url\" class=\"link\" target=\"_blank\">$url</a>" . $suffix;
    }
 
+   private static $outArray = null;
+   
+   public static function getOutArray() {
+   	
+   		if (self::$outArray == null) {   			
+   			$tpl = new erLhcoreClassTemplate();
+   			$smileys = explode('||', str_replace("\n", '', $tpl->fetch('lhbbcode/smiley.tpl.php')));   			
+   			self::$outArray = $smileys;
+   		}
+   	
+	   	return self::$outArray;
+   }
+   
    public static function BBCode2Html($text) {
     	$text = trim($text);
 
@@ -35,19 +48,20 @@ class erLhcoreClassBBCode
     	);
 
     	// And replace them by...
-    	$out = array(	 '<img alt=":)" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_smile.png').'" />',
-    	                 '<img alt=":D:" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_happy.png').'" />',
-    					 '<img alt=":(" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_unhappy.png').'" />',
-    					 '<img alt=":o:" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_surprised.png').'" />',
-    					 '<img alt=":p:" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_tongue.png').'" />',
-    					 '<img alt=";)" src="'.erLhcoreClassDesign::design('images/smileys/emoticon_wink.png').'" />'
-    	);
+    	$out = self::getOutArray();
+    	
+    	$in[] = '[/*]';
+    	$in[] = '[*]';
+    	$out[] = '</li>';
+    	$out[] = '<li>';
+    	    	
     	$text = str_replace($in, $out, $text);
 
     	// BBCode to find...
     	$in = array( 	 '/\[b\](.*?)\[\/b\]/ms',
     					 '/\[i\](.*?)\[\/i\]/ms',
     					 '/\[u\](.*?)\[\/u\]/ms',
+    					 '/\[s\](.*?)\[\/s\]/ms',
     					 '/\[list\=(.*?)\](.*?)\[\/list\]/ms',
     					 '/\[list\](.*?)\[\/list\]/ms',
     					 '/\[\*\]\s?(.*?)\n/ms'
@@ -56,6 +70,7 @@ class erLhcoreClassBBCode
     	$out = array(	 '<strong>\1</strong>',
     					 '<em>\1</em>',
     					 '<u>\1</u>',
+    					 '<strike>\1</strike>',
     					 '<ol start="\1">\2</ol>',
     					 '<ul>\1</ul>',
     					 '<li>\1</li>'
@@ -306,9 +321,10 @@ class erLhcoreClassBBCode
     	// Youtube block
     	$ret = preg_replace_callback('#\[youtube\](.*?)\[/youtube\]#is', 'erLhcoreClassBBCode::_make_youtube_block', $ret);
 
+    	$ret = preg_replace('#\[translation\](.*?)\[/translation\]#is', '<span class="tr-msg">$1</span>', $ret);
+
     	// File block
     	$ret = preg_replace_callback('#\[file="?(.*?)"?\]#is', 'erLhcoreClassBBCode::_make_url_file', $ret);
-
 
     	$ret = trim($ret);
     	return $ret;

@@ -9,7 +9,8 @@ class erLhAbstractModelFormCollected {
 			'form_id'  		=> $this->form_id,
 			'ctime'  		=> $this->ctime,
 			'ip'  			=> $this->ip,
-			'content' 		=> $this->content
+			'content' 		=> $this->content,
+			'identifier' 	=> $this->identifier
 		);
 
 		return $stateArray;
@@ -71,10 +72,29 @@ class erLhAbstractModelFormCollected {
 	   	case 'form':
 	   			return $this->form = erLhAbstractModelForm::fetch($this->form_id);
 	   		break;
-	   						
+	   		
+	   	case 'form_content':
+	   	       return $this->getFormattedContent();
+	   	    break;					
 	   	default:
 	   		break;
 	   }
+	}
+	
+	public function getFormattedContent()
+	{	    
+	    $dataCollected = array();
+	    foreach ($this->content_array as $nameAttr => $contentArray) {
+	        if (isset($contentArray['definition']['type']) && $contentArray['definition']['type'] == 'file') {
+	            $dataCollected[] = $contentArray['definition']['name_literal']." - " . erLhcoreClassXMP::getBaseHost() . $_SERVER['HTTP_HOST'] . erLhcoreClassDesign::baseurldirect('user/login').'/(r)/'.rawurlencode(base64_encode('form/download/'.$this->id.'/'.$nameAttr));
+	        } elseif (isset($contentArray['definition']['type']) && $contentArray['definition']['type'] == 'checkbox') {
+	            $dataCollected[] = $contentArray['definition']['name_literal']." - ".($contentArray['value'] == 1 ? 'Y' : 'N');
+	        } else {
+	            $dataCollected[] = $contentArray['definition']['name_literal']." - ".$contentArray['value'];
+	        }
+	    }
+	  
+	    return implode("\n", $dataCollected);
 	}
 	
 	public function getAttrValue($attrDesc) {		
@@ -113,9 +133,16 @@ class erLhAbstractModelFormCollected {
 	public function removeThis()
 	{
 		foreach ($this->content_array as $key => $content) {
-			if ($content['definition']['type'] == 'file' && file_exists($content['filepath'] . $content['filename'])) {
-				unlink($content['filepath'] . $content['filename']);				
-				erLhcoreClassFileUpload::removeRecursiveIfEmpty('var/', str_replace('var/', '', $content['filepath']));
+			if ($content['definition']['type'] == 'file') {
+							
+				if ($content['filename'] != '') {
+					erLhcoreClassChatEventDispatcher::getInstance()->dispatch('form.remove_file', array('filepath' => $content['filepath'], 'filename' => $content['filename']));
+				}
+				
+				if ($content['filepath'] != '' && file_exists($content['filepath'] . $content['filename'])){
+					unlink($content['filepath'] . $content['filename']);				
+					erLhcoreClassFileUpload::removeRecursiveIfEmpty('var/', str_replace('var/', '', $content['filepath']));
+				}
 			}
 		}
 				
@@ -185,6 +212,7 @@ class erLhAbstractModelFormCollected {
 	public $ctime = null;	
 	public $ip = '';
 	public $content = '';
+	public $identifier = '';
 
 }
 

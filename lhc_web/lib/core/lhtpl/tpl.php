@@ -209,9 +209,9 @@ class erLhcoreClassTemplate {
 	        $contentFile = php_strip_whitespace($file);
 
 	        // Compile templates - 3 level of inclusions
-	        for ($i = 0; $i < 3; $i++) {
+	        for ($i = 0; $i < 9; $i++) {
     	        $Matches = array();
-    			preg_match_all('/<\?php(.*?)include_once\(erLhcoreClassDesign::designtpl\(\'([a-zA-Z0-9-\.-\/\_]+)\'\)\)(.*?)\?\>/i',$contentFile,$Matches);
+    			preg_match_all('/<\?php(\s*)include_once\(erLhcoreClassDesign::designtpl\(\'([a-zA-Z0-9-\.-\/\_]+)\'\)\)(.*?)\?\>/i',$contentFile,$Matches);
     			foreach ($Matches[2] as $key => $Match)
     			{
     				$contentFile = str_replace($Matches[0][$key],php_strip_whitespace(erLhcoreClassDesign::designtpl($Match)),$contentFile);
@@ -219,7 +219,7 @@ class erLhcoreClassTemplate {
 
     	        //Compile templates inclusions first level.
     	        $Matches = array();
-    			preg_match_all('/<\?php(.*?)include\(erLhcoreClassDesign::designtpl\(\'([a-zA-Z0-9-\.-\/\_]+)\'\)\)(.*?)\?\>/i',$contentFile,$Matches);
+    			preg_match_all('/<\?php(\s*)include\(erLhcoreClassDesign::designtpl\(\'([a-zA-Z0-9-\.-\/\_]+)\'\)\)(.*?)\?\>/i',$contentFile,$Matches);
     			foreach ($Matches[2] as $key => $Match)
     			{
     				$contentFile = str_replace($Matches[0][$key],php_strip_whitespace(erLhcoreClassDesign::designtpl($Match)),$contentFile);
@@ -270,6 +270,14 @@ class erLhcoreClassTemplate {
 				$contentFile = str_replace($Matches[0][$key],erLhcoreClassDesign::baseurldirect(trim($UrlAddress,'\'')),$contentFile);
 			}
 
+			// Compile url direct addresses
+			$Matches = array();
+			preg_match_all('/<\?php echo erLhcoreClassDesign::baseurlsite\(\)(.*?)\?\>/i',$contentFile,$Matches);
+			foreach ($Matches[1] as $key => $UrlAddress)
+			{
+				$contentFile = str_replace($Matches[0][$key],erLhcoreClassDesign::baseurlsite(),$contentFile);
+			}
+
 			// Compile css url addresses
 			$Matches = array();
 			preg_match_all('/<\?php echo erLhcoreClassDesign::designCSS\((.*?)\)(.*?)\?\>/i',$contentFile,$Matches);
@@ -294,6 +302,13 @@ class erLhcoreClassTemplate {
 				$contentFile = str_replace($Matches[0][$key],'\''.erLhcoreClassDesign::baseurl(trim($UrlAddress,'\'')).'\'',$contentFile);
 			}
 
+			// Compile url addresses in logical operations
+			$Matches = array();
+			preg_match_all('/erLhcoreClassDesign::baseurldirect\((.*?)\)/i',$contentFile,$Matches);
+			foreach ($Matches[1] as $key => $UrlAddress)
+			{
+				$contentFile = str_replace($Matches[0][$key],'\''.erLhcoreClassDesign::baseurldirect(trim($UrlAddress,'\'')).'\'',$contentFile);
+			}
 
 			// Compile config settings, direct output
 			$Matches = array();
@@ -445,6 +460,16 @@ class erLhcoreClassTemplate {
 	                $valueReplace = '\''.str_replace("'","\'",$valueConfig).'\'';
 	                $contentFile = str_replace($Matches[0][$key],$valueReplace,$contentFile);
 	            }
+            	            
+				// Compile config settings in php scripts
+	            $Matches = array();
+	            preg_match_all('/erLhcoreClassModelChatConfig::fetch\((\s?)\'([a-zA-Z0-9-\.-\/\_]+)\'(\s?)\)->data_value/i',$contentFile,$Matches);
+	            foreach ($Matches[1] as $key => $UrlAddress)
+	            {
+	                $valueConfig = erLhcoreClassModelChatConfig::fetch($Matches[2][$key])->data_value;
+	                $valueReplace = var_export($valueConfig,true);
+	                $contentFile = str_replace($Matches[0][$key],$valueReplace,$contentFile);
+	            }            
 	            
 				// Compile config settings array
 	            $Matches = array();
@@ -502,7 +527,7 @@ class erLhcoreClassTemplate {
 	{
 		@extract($this->vars,EXTR_REFS);        // Extract the vars to local namespace
         ob_start();                             // Start output buffering
-        $result = @include($file);               // Include the file
+        $result = include($file);               // Include the file
         if ($result === false) {                 // Make sure file was included succesfuly
             throw new Exception("File inclusion failed"); // Throw exception if failed, so tpl compiler will recompile template
         }

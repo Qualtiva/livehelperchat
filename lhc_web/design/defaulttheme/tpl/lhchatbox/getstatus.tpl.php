@@ -71,6 +71,8 @@ if (key_exists($position, $positionArgument)){
 
 ?>
 
+<?php include(erLhcoreClassDesign::designtpl('lhchatbox/getstatus/options_variable.tpl.php')); ?>
+
 var lhc_Chatbox = {
 	JSON : {
             parse: window.JSON && (window.JSON.parse || window.JSON.decode) || String.prototype.evalJSON && function(str){return String(str).evalJSON();} || $.parseJSON || $.evalJSON,
@@ -106,32 +108,55 @@ var lhc_Chatbox = {
 		    this.addCookieAttribute('pos',cookiePos);	
     },
     
-    min : function() {
-		var dm = document.getElementById('lhc_container_chatbox');	
+	min : function(initial) {
+		var dm = document.getElementById('lhc_container_chatbox');					
 		if (!dm.attrIsMin || dm.attrIsMin == false) {
 			dm.attrHeight = dm.style.height;
 			dm.attrIsMin = true;
-			this.addClass(dm,'lhc-no-transition');
-			this.addClass(dm,'lhc-min');			
+			this.addClass(dm,'lhc-min');									
 			<?php if ($currentPosition['posv'] == 'b') : ?>			
-			if(dm.style.bottom!='' && dm.attrHeight!='')dm.style.bottom = (parseInt(dm.style.bottom)+parseInt(dm.attrHeight)-35)+'px';
+			if(dm.style.bottom!='' && dm.attrHeight!=''){
+				dm.style.bottom = (parseInt(dm.style.bottom)+parseInt(dm.attrHeight)-35)+'px';							
+			} else {
+				if (initial == undefined) {
+					dm.style.bottom = (parseInt(dm.style.bottom) + parseInt(document.getElementById('lhc_chatbox_iframe_container').offsetHeight)-10)+'px';
+				}			
+			}
 			<?php endif; ?>			
 			this.addCookieAttribute('m',1);
 			this.storePos(dm);
+			<?php if ($currentPosition['posv'] == 'b' && isset($minimize_action) && $minimize_action == 'br') : ?>
+					dm.attrBottomOrigin = dm.style.bottom;
+					dm.style.bottom = '';										
+					<?php if ($currentPosition['pos'] == 'r') : ?>
+					dm.attrRightOrigin = dm.style.right;
+					dm.style.right = '0px';	
+					<?php else : ?>
+					dm.attrLeftOrigin = dm.style.left;
+					dm.style.left = '0px';	
+					<?php endif;?>													
+			<?php endif;?>
 		} else {	
 			dm.attrIsMin = false;
 			<?php if ($currentPosition['posv'] == 'b') : ?>
-			if(dm.style.bottom!='')dm.style.bottom = (parseInt(dm.style.bottom)-parseInt(document.getElementById('lhcchatbox_iframe').style.height)+9)+'px';	
+			if (dm.attrBottomOrigin)	{
+				dm.style.bottom = (parseInt(dm.attrBottomOrigin)-parseInt(document.getElementById('lhcchatbox_iframe').style.height)+9)+'px';
+				<?php if ($currentPosition['pos'] == 'r') : ?>
+				dm.style.right = dm.attrRightOrigin;	
+				<?php else : ?>
+				dm.style.left = dm.attrLeftOrigin;	
+				<?php endif;?>
+			} else if (dm.style.bottom!=''){		
+				dm.style.bottom = (parseInt(dm.style.bottom)-parseInt(document.getElementById('lhcchatbox_iframe').style.height)+9)+'px';
+			}
 			<?php endif;?>		
 			this.removeCookieAttr('m');
 			this.removeClass(dm,'lhc-min');
-			var inst = this;
-			setTimeout(function(){
-				inst.removeClass(dm,'lhc-no-transition');
-			},500);
+			var inst = this;		
 			this.storePos(dm);
 		};
 	},
+	
 	
 	addCss : function(css_content) {
         var head = document.getElementsByTagName('head')[0];
@@ -183,9 +208,10 @@ var lhc_Chatbox = {
     },
 
  	getAppendRequestArguments : function() {
-		    var nickOption = (typeof LHCChatboxOptions.nick !== 'undefined') ?  '&nick='+encodeURIComponent(LHCChatboxOptions.nick) : (this.cookieData.nick ? '&nick='+encodeURIComponent(this.cookieData.nick) : '');
-		    var disableOption = (typeof LHCChatboxOptions.disable_nick_change !== 'undefined') ?  '&dnc=true' : '';
-		    return nickOption+disableOption;
+		    var nickOption = (typeof <?php echo $chatboxOptionsVariable;?>.nick !== 'undefined') ?  '&nick='+encodeURIComponent(<?php echo $chatboxOptionsVariable;?>.nick) : (this.cookieData.nick ? '&nick='+encodeURIComponent(this.cookieData.nick) : '');
+		    var disableOption = (typeof <?php echo $chatboxOptionsVariable;?>.disable_nick_change !== 'undefined') ?  '&dnc=true' : '';
+		    var chatboxName = (typeof <?php echo $chatboxOptionsVariable;?>.chatbox_name !== 'undefined') ?  '&chtbx_name='+encodeURIComponent(<?php echo $chatboxOptionsVariable;?>.chatbox_name) : '';
+		    return nickOption+disableOption+chatboxName;
     },
     
 	addEvent : (function () {
@@ -217,21 +243,26 @@ var lhc_Chatbox = {
    		  this.removeById('lhc_container_chatbox');
 		  var locationCurrent = encodeURIComponent(window.location.href.substring(window.location.protocol.length));
 		  
-   		  this.initial_iframe_url = "<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::baseurl('chatbox/chatwidget')?>/(chat_height)/<?php echo $heightchatcontent;?><?php $theme !== false ? print '/(theme)/'.$theme->id : ''?>/(identifier)/"+LHCChatboxOptions.identifier+'/(hashchatbox)/'+LHCChatboxOptions.hashchatbox+this.getAppendCookieArguments()+'?URLReferer='+locationCurrent+this.getAppendRequestArguments();
+   		  this.initial_iframe_url = "<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::baseurl('chatbox/chatwidget')?>/(chat_height)/<?php echo $heightchatcontent;?><?php $theme !== false ? print '/(theme)/'.$theme->id : ''?>/(identifier)/"+<?php echo $chatboxOptionsVariable;?>.identifier+'/(hashchatbox)/'+<?php echo $chatboxOptionsVariable;?>.hashchatbox+this.getAppendCookieArguments()+'?URLReferer='+locationCurrent+this.getAppendRequestArguments();
 
+   		  if (window.innerWidth < 1024) {
+          		window.open(this.initial_iframe_url,"_blank");
+          		return;
+          };
+   		  
    		  this.addCookieAttribute('is_opened',1);
 
-   		  this.iframe_html = '<iframe id="lhcchatbox_iframe" allowTransparency="true" scrolling="no" class="lhc-loading" frameborder="0" ' +
+   		  this.iframe_html = '<div id="lhc_chatbox_iframe_container"><iframe id="lhcchatbox_iframe" allowTransparency="true" scrolling="no" class="lhc-loading" frameborder="0" ' +
                        ( this.initial_iframe_url != '' ? ' src="'    + this.initial_iframe_url + '"' : '' ) +
                        ' width="<?php echo $widthwidget?>"' +
                        ' height="<?php echo $heightwidget?>"' +
-                       ' style="width: <?php echo $widthwidget?>px; height: <?php echo $heightwidget?>px;"></iframe>';
+                       ' style="width: <?php echo $widthwidget?>px; height: <?php echo $heightwidget?>px;"></iframe></div>';
 
           this.iframe_html = '<div id="lhc_container_chatbox">' +
-                              '<div id="lhc_chatbox_header"><?php include(erLhcoreClassDesign::designtpl('lhchat/widget_brand/chatbox.tpl.php')); ?><?php if ($show_content === false) : ?><a href="#" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" id="lhc_chatbox_close"><img src="<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::design('images/icons/cancel.png');?>" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" alt="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" /></a><?php endif;?><?php if ($disable_min === false) : ?><a href="#" id="lhc_chatbox_min" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Minimize/Restore')?>"><img src="<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::design('images/icons/min.png');?>"></a><?php endif;?></div><div id="lhc_iframe_container">' +
+                              '<div id="lhc_chatbox_header"><?php include(erLhcoreClassDesign::designtpl('lhchat/widget_brand/chatbox.tpl.php')); ?><?php if ($show_content === false) : ?><a href="#" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" id="lhc_chatbox_close"><img src="<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php if ($theme !== false && $theme->close_image_url != '') : ?><?php echo $theme->close_image_url;?><?php else : ?><?php echo erLhcoreClassDesign::design('images/icons/cancel.png');?><?php endif;?>" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" alt="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Close')?>" /></a><?php endif;?><?php if ($disable_min === false) : ?><a href="#" id="lhc_chatbox_min" title="<?php echo erTranslationClassLhTranslation::getInstance()->getTranslation('chat/getstatus','Minimize/Restore')?>"></a><?php endif;?></div><div id="lhc_iframe_container">' +
                               this.iframe_html + '</div></div>';
 
-          raw_css = ".lhc-no-transition{ -webkit-transition: none !important; -moz-transition: none !important;-o-transition: none !important;-ms-transition: none !important;transition: none !important;}\n.lhc-min{height:35px !important}\n#lhc_container_chatbox * {direction:<?php (erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == 'ltr' || erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == '') ? print 'ltr;text-align:left;' : print 'rtl;text-align:right;'; ?>;font-family:arial\;font-size:12px\;line-height:100%\;box-sizing: content-box\;-moz-box-sizing:content-box;padding:0;margin:0;}\n#lhc_container_chatbox img {border:0;}\n#lhc_chatbox_title{float:left;}\n#lhc_chatbox_header{position:relative;z-index:9990;height:15px;overflow:hidden;background-color:#<?php $theme !== false ? print $theme->header_background : print '525252' ?>;text-align:right;clear:both;padding:5px;}\n#lhc_chatbox_close,#lhc_chatbox_min{padding:2px;float:right;}\n#lhc_chatbox_close:hover,#lhc_chatbox_min:hover{opacity:0.4}\n#lhc_container_chatbox {overflow: hidden;transition-property: height;transition-duration: 0.4s;-webkit-transition: height 0.4s ease-in-out;transition: height 0.4s;background-color:#FFF\;\nz-index:9990;\n position: fixed;<?php echo $currentPosition['position_body']?>;-webkit-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);-moz-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);-webkit-border-radius: 5px;-moz-border-radius: 5px;border-radius: 5px;-moz-user-select:none; -khtml-user-drag:element;cursor: move;cursor: -moz-grab;cursor: -webkit-grab; }\n#lhc_container_chatbox iframe{display:block;transition-property: height;transition-duration: 0.4s;-webkit-transition: height 0.4s ease-in-out;transition: height 0.4s;}\n#lhc_container_chatbox iframe.lhc-loading{\nbackground: #FFF url(<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::design('images/general/loading.gif');?>) no-repeat center center; }\n#lhc_container_chatbox #lhc_iframe_container{border: 1px solid #<?php $theme !== false ? print $theme->widget_border_color : print 'cccccc' ?>;border-top: 0;border-bottom-left-radius: 5px;border-bottom-right-radius: 5px;overflow: hidden;}\n@media only screen and (max-width : 640px) {#lhc_container_chatbox{margin-bottom:5px;position:relative;right:0 !important;bottom:0 !important;top:0 !important}#lhc_container_chatbox iframe{width:100% !important}}";
+          raw_css = ".lhc-no-transition{ -webkit-transition: none !important; -moz-transition: none !important;-o-transition: none !important;-ms-transition: none !important;transition: none !important;}\n.lhc-min{height:35px !important}\n#lhc_container_chatbox * {direction:<?php (erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == 'ltr' || erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == '') ? print 'ltr;text-align:left;' : print 'rtl;text-align:right;'; ?>;font-family:arial\;font-size:12px\;line-height:100%\;box-sizing: content-box\;-moz-box-sizing:content-box;padding:0;margin:0;}\n#lhc_container_chatbox img {border:0;}\n#lhc_chatbox_title{float:left;}\n#lhc_chatbox_header{position:relative;z-index:9990;height:<?php ($theme !== false && $theme->header_height > 0) ? print $theme->header_height : print '15' ?>px;overflow:hidden;background-color:#<?php $theme !== false ? print $theme->header_background : print '525252' ?>;text-align:right;clear:both;padding:<?php ($theme !== false && $theme->header_padding > 0) ? print $theme->header_padding : print '5' ?>px;}\n#lhc_chatbox_close,#lhc_chatbox_min{padding:2px;float:right;}.lhc-min #lhc_chatbox_min{background-image:url(<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php if ($theme !== false && $theme->restore_image_url != '') : ?><?php echo $theme->restore_image_url;?><?php else : ?><?php echo erLhcoreClassDesign::design('images/icons/restore.png');?><?php endif;?>)}#lhc_chatbox_min{width:14px;height:14px;background:url(<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php if ($theme !== false && $theme->minimize_image_url != '') : ?><?php echo $theme->minimize_image_url;?><?php else : ?><?php echo erLhcoreClassDesign::design('images/icons/min.png');?><?php endif;?>) no-repeat center center;}\n\n#lhc_chatbox_close:hover,#lhc_chatbox_min:hover{opacity:0.4}\n#lhc_container_chatbox {overflow: hidden;transition-property: height;transition-duration: 0.4s;-webkit-transition: height 0.4s ease-in-out;transition: height 0.4s;background-color:#FFF\;\nz-index:9990;\n position: fixed;<?php echo $currentPosition['position_body']?>;-webkit-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);-moz-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);-webkit-border-radius: 5px;-moz-border-radius: 5px;border-radius: 5px;-moz-user-select:none; -khtml-user-drag:element;cursor: move;cursor: -moz-grab;cursor: -webkit-grab; }\n#lhc_container_chatbox iframe{position:relative;display:block;transition-property: height;transition-duration: 0.4s;-webkit-transition: height 0.4s ease-in-out;transition: height 0.4s;}\n#lhc_container_chatbox iframe.lhc-loading{\nbackground: #FFF url(<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::design('images/general/loading.gif');?>) no-repeat center center; }\n#lhc_container_chatbox #lhc_iframe_container{border:<?php ($theme !== false && $theme->widget_border_width > 0) ? print $theme->widget_border_width : print '1' ?>px solid #<?php $theme !== false ? print $theme->widget_border_color : print 'cccccc' ?>;border-top: 0;border-bottom-left-radius: 5px;border-bottom-right-radius: 5px;overflow: hidden;}\n@media only screen and (max-width : 640px) {#lhc_container_chatbox{margin-bottom:5px;position:relative;right:0 !important;bottom:0 !important;top:0 !important}#lhc_container_chatbox iframe{width:100% !important}}";
 
           if (!this.cssWasAdded) {
           		this.cssWasAdded = true;
@@ -255,13 +286,13 @@ var lhc_Chatbox = {
           var domContainerId = 'lhc_container_chatbox';
 		  <?php include(erLhcoreClassDesign::designtpl('lhchat/getstatus/drag_drop_logic.tpl.php')); ?>
 		  
-		  if (this.cookieData.m) {this.min();};	
+		  if (this.cookieData.m) {this.min(true);};
 		  
    },
 
    showStatusWidget : function() {
    		<?php if ($show_content === false) : ?>
-       var statusTEXT = '<a id="chatbox-icon" class="status-icon" href="#" >'+LHCChatboxOptions.status_text+'</a>';
+       var statusTEXT = '<a id="chatbox-icon" class="status-icon" href="#" >'+<?php echo $chatboxOptionsVariable;?>.status_text+'</a>';
        var raw_css = "#lhc_chatbox_container * {direction:<?php (erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == 'ltr' || erConfigClassLhConfig::getInstance()->getOverrideValue('site', 'dir_language') == '') ? print 'ltr;text-align:left;' : print 'rtl;text-align:right;'; ?>;font-family:arial;font-size:12px;line-height:100%;box-sizing: content-box;zoom:1;margin:0;padding:0}\n#lhc_chatbox_container .status-icon{text-decoration:none;font-size:12px;font-weight:bold;color:#<?php $theme !== false ? print $theme->text_color : print '000' ?>;display:block;padding:<?php echo $currentPosition['padding_text']?>;background:url('<?php echo erLhcoreClassModelChatConfig::fetch('explicit_http_mode')->current_value?>//<?php echo $_SERVER['HTTP_HOST']?><?php echo erLhcoreClassDesign::design('images/icons/emotion_amazing.png');?>') no-repeat <?php echo $currentPosition['background_position']?> center}\n#lhc_chatbox_container:hover{<?php echo $currentPosition['widget_hover']?>}\n#lhc_chatbox_container{box-sizing: content-box;<?php echo $currentPosition['widget_radius']?>-webkit-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);-moz-box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);box-shadow: <?php echo $currentPosition['shadow']?> rgba(50, 50, 50, 0.17);<?php echo $currentPosition['border_widget']?>;padding:5px 0px 3px 5px;width:190px;font-family:arial;font-size:12px;line-height:100%;transition: 1s;position:fixed;<?php echo $currentPosition['position']?>;background-color:#<?php $theme !== false ? print $theme->onl_bcolor : print 'f6f6f6' ?>;z-index:9989;}\n<?php if ($noresponse == false) : ?>@media only screen and (max-width : 640px) {#lhc_chatbox_container{position:relative;top:0;right:0;bottom:0;left:0;width:auto;border-radius:2px;box-shadow:none;border:1px solid #e3e3e3;margin-bottom:5px;}}\n<?php endif;?>";
        this.addCss(raw_css<?php ($theme !== false && $theme->custom_status_css !== '') ? print '+\''.str_replace(array("\n","\r"), '', $theme->custom_status_css).'\'' : '' ?>);
        var htmlStatus = '<div id="lhc_chatbox_container">'+statusTEXT+'</div>';
@@ -350,5 +381,7 @@ if ( window.addEventListener ){
 };
 
 if (lhc_Chatbox.cookieData.is_opened) {
-	lhc_Chatbox.showVotingForm();
+	if (window.innerWidth > 1023) {
+		lhc_Chatbox.showVotingForm();
+	}
 }

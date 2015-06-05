@@ -12,6 +12,7 @@ if ( isset($_POST['SendMessage']) ) {
     $validationFields['Message'] =  new ezcInputFormDefinitionElement( ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw' );
     $validationFields['RequiresEmail'] =  new ezcInputFormDefinitionElement( ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw' );
     $validationFields['RequiresUsername'] =  new ezcInputFormDefinitionElement( ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw' );
+    $validationFields['RequiresPhone'] =  new ezcInputFormDefinitionElement( ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw' );
     
     $form = new ezcInputForm( INPUT_POST, $validationFields );    
     $Errors = array();
@@ -37,7 +38,15 @@ if ( isset($_POST['SendMessage']) ) {
     } else {
     	$visitor->requires_username = 0;
     }
-    
+
+    if ($form->hasValidData( 'RequiresPhone' ) && $form->RequiresPhone == true) {
+        $visitor->requires_phone = 1;
+    } else {
+    	$visitor->requires_phone = 0;
+    }
+   
+    erLhcoreClassChatEventDispatcher::getInstance()->dispatch('chat.sendnotice', array('errors' => & $Errors));
+            
     if (count($Errors) == 0) { 
                
         $currentUser = erLhcoreClassUser::instance();   
@@ -46,12 +55,15 @@ if ( isset($_POST['SendMessage']) ) {
         $visitor->operator_user_id = $currentUser->getUserID();
         $visitor->saveThis();
         
+        erLhcoreClassChatEventDispatcher::getInstance()->dispatch('onlineuser.proactive_send_invitation', array('ou' => & $visitor));
+        
         $tpl->set('message_saved',true);    
     } else {        
         $tpl->set('errors',$Errors);
     } 
 }
 
-$Result['content'] = $tpl->fetch();
-$Result['pagelayout'] = 'popup';
+echo $tpl->fetch();
+exit;
+
 ?>

@@ -15,10 +15,10 @@ if ($chat->user_id == $currentUser->getUserID() || $currentUser->hasAccessTo('lh
 		exit;
 	}
 
-	if ($chat->status != erLhcoreClassModelChat::STATUS_CLOSED_CHAT){
+	if ($chat->status != erLhcoreClassModelChat::STATUS_CLOSED_CHAT) {
 
 	    $chat->status = erLhcoreClassModelChat::STATUS_CLOSED_CHAT;
-	    $chat->chat_duration = time() - ($chat->time + $chat->wait_time);
+	    $chat->chat_duration = erLhcoreClassChat::getChatDurationToUpdateChatID($chat->id);
 
 	    $userData = $currentUser->getUserData(true);
 
@@ -34,6 +34,10 @@ if ($chat->user_id == $currentUser->getUserID() || $currentUser->hasAccessTo('lh
 	    $chat->updateThis();
 	    
 	    erLhcoreClassChat::updateActiveChats($chat->user_id);
+	    
+	    if ($chat->department !== false) {
+	        erLhcoreClassChat::updateDepartmentStats($chat->department);
+	    }
 	    
 	    // Execute callback for close chat
 	    erLhcoreClassChat::closeChatCallback($chat,$userData);

@@ -36,7 +36,13 @@ class erLhcoreClassModelDepartament {
                'nc_cb_execute' 			=> $this->nc_cb_execute,
                'active_balancing' 		=> $this->active_balancing,
                'max_active_chats' 		=> $this->max_active_chats,
-               'max_timeout_seconds' 	=> $this->max_timeout_seconds
+               'max_timeout_seconds' 	=> $this->max_timeout_seconds,
+               'attr_int_1' 	        => $this->attr_int_1,
+               'attr_int_2' 	        => $this->attr_int_2,
+               'attr_int_3' 	        => $this->attr_int_3,
+               'active_chats_counter' 	=> $this->active_chats_counter,
+               'pending_chats_counter' 	=> $this->pending_chats_counter,
+               'closed_chats_counter' 	=> $this->closed_chats_counter,
        );
    }
 
@@ -108,6 +114,22 @@ class erLhcoreClassModelDepartament {
 	   			return $this->department_transfer;
 	   		break;
 
+	   		case 'start_hour_front':
+	   				return floor($this->start_hour/100);
+	   			break;
+
+	   		case 'start_minutes_front':
+	   				return $this->start_hour - ($this->start_hour_front * 100);
+	   			break;
+
+	   		case 'end_hour_front':
+	   				return floor($this->end_hour/100);
+	   			break;
+
+	   		case 'end_minutes_front':
+	   				return $this->end_hour - ($this->end_hour_front * 100);
+	   			break;
+	   		
 	   		default:
 	   			;
 	   		break;
@@ -143,7 +165,7 @@ class erLhcoreClassModelDepartament {
 
    public static function getList($paramsSearch = array())
    {
-       $paramsDefault = array('limit' => 32, 'offset' => 0);
+       $paramsDefault = array('limit' => 500000, 'offset' => 0);
 
        $params = array_merge($paramsDefault,$paramsSearch);
 
@@ -232,6 +254,13 @@ class erLhcoreClassModelDepartament {
     public $active_balancing = 0;
     public $max_active_chats = 0;
     public $max_timeout_seconds = 0;
+    public $attr_int_1 = 0;
+    public $attr_int_2 = 0;
+    public $attr_int_3 = 0;
+    
+    public $active_chats_counter = 0;
+    public $pending_chats_counter = 0;
+    public $closed_chats_counter = 0;
     
     // 0 - disabled
     // > 0 - delay in seconds

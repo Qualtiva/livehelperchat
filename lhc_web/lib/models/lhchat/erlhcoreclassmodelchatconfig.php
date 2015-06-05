@@ -2,6 +2,9 @@
 
 class erLhcoreClassModelChatConfig {
 
+   
+   public static $disableCache = false;
+    
    public function getState()
    {
        return array(
@@ -15,7 +18,7 @@ class erLhcoreClassModelChatConfig {
 
    public static function fetch($identifier)
    {
-       if (isset($GLOBALS['lhc_erLhcoreClassModelChatConfig'.$identifier])) {
+       if (self::$disableCache == false && isset($GLOBALS['lhc_erLhcoreClassModelChatConfig'.$identifier])) {
            return $GLOBALS['lhc_erLhcoreClassModelChatConfig'.$identifier];
        }
        try {
@@ -51,6 +54,11 @@ class erLhcoreClassModelChatConfig {
    			case 'data':
    					$this->data = unserialize($this->value);
    					return $this->data;
+   				break;
+   				
+   			case 'data_value':
+   					$this->data_value = $this->data;
+   					return $this->data_value;
    				break;
 
    			case 'current_value':

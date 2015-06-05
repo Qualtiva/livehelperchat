@@ -10,7 +10,9 @@ class erLhAbstractModelAutoResponder {
 			'wait_message'		=> $this->wait_message,
 			'timeout_message'	=> $this->timeout_message,
 			'wait_timeout'		=> $this->wait_timeout,
-			'position'			=> $this->position
+			'dep_id'			=> $this->dep_id,
+			'position'			=> $this->position,
+			'repeat_number'		=> $this->repeat_number
 		);
 
 		return $stateArray;
@@ -48,6 +50,17 @@ class erLhAbstractModelAutoResponder {
    						'validation_definition' => new ezcInputFormDefinitionElement(
    								ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw'
    						)),
+   				'dep_id' => array (
+   						'type' => 'combobox',
+   						'trans' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','Department'),
+   						'required' => false,
+   						'hidden' => true,
+   						'source' => 'erLhcoreClassModelDepartament::getList',
+   						'hide_optional' => false,
+   						'params_call' => array(),
+   						'validation_definition' => new ezcInputFormDefinitionElement(
+   								ezcInputFormDefinitionElement::OPTIONAL, 'int'
+   						)),
    				'wait_message' => array(
    						'type' => 'text',
    						'trans' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','Wait message. Visible when users starts chat and is waiting for someone to accept a chat.'),
@@ -63,10 +76,17 @@ class erLhAbstractModelAutoResponder {
    						'validation_definition' => new ezcInputFormDefinitionElement(
    								ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw'
    						)),
+   				'repeat_number' => array(
+   						'type' => 'text',
+   						'trans' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','How many times repeat message?'),
+   						'required' => false,
+   						'validation_definition' => new ezcInputFormDefinitionElement(
+   								ezcInputFormDefinitionElement::OPTIONAL, 'int', array('min_range' => 1)
+   						)),
    				'timeout_message' => array(
    						'type' => 'text',
    						'trans' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','Show visitor this message then wait timeout passes.'),
-   						'required' => false,
+   						'required' => true,
    						'hidden' => true,
    						'validation_definition' => new ezcInputFormDefinitionElement(
    								ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw'
@@ -76,7 +96,13 @@ class erLhAbstractModelAutoResponder {
 
 	public function getModuleTranslations()
 	{
-		return array('permission_delete' => array('module' => 'lhchat','function' => 'administrateresponder'),'permission' => array('module' => 'lhchat','function' => 'administrateresponder'),'name' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','Auto responder'));
+	    $metaData = array('permission_delete' => array('module' => 'lhchat','function' => 'administrateresponder'),'permission' => array('module' => 'lhchat','function' => 'administrateresponder'),'name' => erTranslationClassLhTranslation::getInstance()->getTranslation('abstract/proactivechatinvitation','Auto responder'));
+	    /**
+	     * Get's executed before permissions check. It can redirect to frontpage throw permission exception etc
+	     * */
+	    erLhcoreClassChatEventDispatcher::getInstance()->dispatch('feature.can_use_autoresponder', array('object_meta_data' => & $metaData));
+	    
+		return $metaData;
 	}
 
 	public static function getCount($params = array())
@@ -193,11 +219,11 @@ class erLhAbstractModelAutoResponder {
     	return $objects;
 	}
 
-	public static function processAutoResponder() {
+	public static function processAutoResponder(erLhcoreClassModelChat $chat) {
 
 		$session = erLhcoreClassAbstract::getSession();
 		$q = $session->createFindQuery( 'erLhAbstractModelAutoResponder' );
-		$q->where(  $q->expr->eq( 'siteaccess', $q->bindValue( erLhcoreClassSystem::instance()->SiteAccess ) ).' OR siteaccess = \'\'')
+		$q->where( '('.$q->expr->eq( 'siteaccess', $q->bindValue( erLhcoreClassSystem::instance()->SiteAccess ) ).' OR siteaccess = \'\') AND ('.$q->expr->eq( 'dep_id', $q->bindValue( $chat->dep_id ) ).' OR dep_id = 0)')
 		->orderBy('position ASC')
 		->limit( 1 );
 
@@ -221,6 +247,8 @@ class erLhAbstractModelAutoResponder {
 	public $wait_message = '';
 	public $wait_timeout = 0;
 	public $timeout_message = '';
+	public $dep_id = 0;
+	public $repeat_number = 1;
 
 	public $hide_add = false;
 	public $hide_delete = false;

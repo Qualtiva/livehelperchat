@@ -76,10 +76,20 @@ $def->properties['wait_timeout']->columnName   = 'wait_timeout';
 $def->properties['wait_timeout']->propertyName = 'wait_timeout';
 $def->properties['wait_timeout']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_INT;
 
+$def->properties['repeat_number'] = new ezcPersistentObjectProperty();
+$def->properties['repeat_number']->columnName   = 'repeat_number';
+$def->properties['repeat_number']->propertyName = 'repeat_number';
+$def->properties['repeat_number']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_INT;
+
 $def->properties['requires_email'] = new ezcPersistentObjectProperty();
 $def->properties['requires_email']->columnName   = 'requires_email';
 $def->properties['requires_email']->propertyName = 'requires_email';
 $def->properties['requires_email']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_INT;
+
+$def->properties['requires_phone'] = new ezcPersistentObjectProperty();
+$def->properties['requires_phone']->columnName   = 'requires_phone';
+$def->properties['requires_phone']->propertyName = 'requires_phone';
+$def->properties['requires_phone']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_INT;
 
 $def->properties['requires_username'] = new ezcPersistentObjectProperty();
 $def->properties['requires_username']->columnName   = 'requires_username';
@@ -108,6 +118,19 @@ $def->properties['referrer'] = new ezcPersistentObjectProperty();
 $def->properties['referrer']->columnName   = 'referrer';
 $def->properties['referrer']->propertyName = 'referrer';
 $def->properties['referrer']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_STRING;
+
+// Message returning
+$def->properties['message_returning'] = new ezcPersistentObjectProperty();
+$def->properties['message_returning']->columnName   = 'message_returning';
+$def->properties['message_returning']->propertyName = 'message_returning';
+$def->properties['message_returning']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_STRING;
+
+// If we won't find returning visitor chat or hist previous chat nick, this variable will be replaced for nick
+$def->properties['message_returning_nick'] = new ezcPersistentObjectProperty();
+$def->properties['message_returning_nick']->columnName   = 'message_returning_nick';
+$def->properties['message_returning_nick']->propertyName = 'message_returning_nick';
+$def->properties['message_returning_nick']->propertyType = ezcPersistentObjectProperty::PHP_TYPE_STRING;
+
 
 return $def;
 

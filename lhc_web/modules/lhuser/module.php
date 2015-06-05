@@ -9,9 +9,14 @@ $ViewList['login'] = array(
     'uparams' => array('r'),
 );
 
+$ViewList['autologin'] = array(
+    'params' => array('hash'),
+    'uparams' => array('r','u','l','t'),
+);
+
 $ViewList['logout'] = array(
     'params' => array()
-    );
+);
 
 $ViewList['account'] = array(
     'params' => array(),
@@ -23,33 +28,35 @@ $ViewList['userlist'] = array(
     'script' => 'userlist.php',
     'params' => array(),
     'functions' => array( 'userlist' )
-    );
+);
 
 $ViewList['grouplist'] = array(
     'params' => array(),
     'functions' => array( 'grouplist' )
-    );
+);
 
 $ViewList['edit'] = array(
     'params' => array('user_id'),
+    'uparams' => array('tab'),
     'functions' => array( 'edituser' )
-    );
+);
 
 $ViewList['delete'] = array(
     'params' => array('user_id'),
     'uparams' => array('csfr'),
     'functions' => array( 'deleteuser' )
-    );
+);
 
 $ViewList['new'] = array(
     'params' => array(),
+    'uparams' => array('tab'),
     'functions' => array( 'createuser' )
-    );
+);
 
 $ViewList['newgroup'] = array(
     'params' => array(),
     'functions' => array( 'creategroup', 'editgroup' )
-    );
+);
 
 $ViewList['editgroup'] = array(
     'params' => array('group_id'),
@@ -80,7 +87,8 @@ $ViewList['setsetting'] = array (
 );
 
 $ViewList['setsettingajax'] = array (
-		'params' => array('identifier','value')
+		'params' => array('identifier','value'),
+		'uparams' => array('indifferent')
 );
 
 $ViewList['setoffline'] = array (
@@ -91,6 +99,12 @@ $ViewList['setoffline'] = array (
 $ViewList['setinvisible'] = array (
 		'functions' => array( 'changevisibility' ),
 		'params' => array('status')
+);
+
+$ViewList['autologinconfig'] = array(
+    'params' => array(),
+    'uparams' => array('csfr'),
+    'functions' => array( 'userautologin' )
 );
 
 $FunctionList['groupassignuser'] = array('explain' => 'Allow user to assign user to group');
@@ -113,5 +127,8 @@ $FunctionList['changevisibility'] = array('explain' => 'Allow user to change his
 $FunctionList['change_visibility_list'] = array('explain' => 'Allow user to choose what list should be visible by him, pending/active/unread/closed');
 $FunctionList['see_assigned_departments'] = array('explain' => 'Allow user to see departments assigned to him');
 $FunctionList['allowtochoosependingmode'] = array('explain' => 'Allow user to choose what pending chats he can see, only assigned to him or all.');
+$FunctionList['receivepermissionrequest'] = array('explain' => 'Allow user to choose should he receive other operators permissions requests');
+$FunctionList['userautologin'] = array('explain' => 'Allow user to configure autologin');
+$FunctionList['canseedepartmentstats'] = array('explain' => 'Allow user to see department statistic');
 
 ?>

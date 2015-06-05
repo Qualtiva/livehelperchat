@@ -6,6 +6,26 @@ $ott = '';
 $ru = '';
 
 $tpl = erLhcoreClassTemplate::getInstance('lhchat/checkchatstatus.tpl.php');
+$tpl->set('theme',false);
+
+if (isset($Params['user_parameters_unordered']['theme']) && (int)$Params['user_parameters_unordered']['theme'] > 0){
+    try {
+        $theme = erLhAbstractModelWidgetTheme::fetch($Params['user_parameters_unordered']['theme']);
+        $tpl->set('theme',$theme);
+    } catch (Exception $e) {
+
+    }
+} else {
+    $defaultTheme = erLhcoreClassModelChatConfig::fetch('default_theme_id')->current_value;
+    if ($defaultTheme > 0) {
+        try {
+            $theme = erLhAbstractModelWidgetTheme::fetch($defaultTheme);
+            $tpl->set('theme',$theme);
+        } catch (Exception $e) {
+             
+        }
+    }
+}
 
 try {
     $chat = erLhcoreClassModelChat::fetch($Params['user_parameters']['chat_id']);
@@ -41,6 +61,15 @@ try {
     			if ($department->delay_lm > 0 && $chat->time < $delay) {
     				$baseURL = (isset($Params['user_parameters_unordered']['mode']) && $Params['user_parameters_unordered']['mode'] == 'widget') ? erLhcoreClassDesign::baseurl('chat/chatwidget') : erLhcoreClassDesign::baseurl('chat/startchat');
     				$ru = $baseURL.'/(department)/'.$department->id.'/(offline)/true/(leaveamessage)/true/(chatprefill)/'.$chat->id.'_'.$chat->hash;
+    				
+    				$msg = new erLhcoreClassModelmsg();
+    				$msg->msg = erTranslationClassLhTranslation::getInstance()->getTranslation('chat/checkchatstatus','Visitor has been redirected to contact form');
+    				$msg->chat_id = $chat->id;
+    				$msg->user_id = -1;
+    				$msg->time = time();    				
+    				erLhcoreClassChat::getSession()->save($msg);
+    				// We do not store last msg time for chat here, because in any case none of opeators has opened it
+    				
     			} else {
     				erLhcoreClassChatWorkflow::autoAssign($chat,$department);
     			}
@@ -80,6 +109,14 @@ try {
 	    	if ($department !== false) {
 	    		$baseURL = (isset($Params['user_parameters_unordered']['mode']) && $Params['user_parameters_unordered']['mode'] == 'widget') ? erLhcoreClassDesign::baseurl('chat/chatwidget') : erLhcoreClassDesign::baseurl('chat/startchat');
 	    		$ru = $baseURL.'/(department)/'.$department->id.'/(offline)/true/(leaveamessage)/true/(chatprefill)/'.$chat->id.'_'.$chat->hash;
+	    		
+	    		$msg = new erLhcoreClassModelmsg();
+	    		$msg->msg = erTranslationClassLhTranslation::getInstance()->getTranslation('chat/checkchatstatus','Visitor has been redirected to contact form');
+	    		$msg->chat_id = $chat->id;
+	    		$msg->user_id = -1;
+	    		$msg->time = time();
+	    		erLhcoreClassChat::getSession()->save($msg);
+	    		// We do not store last msg time for chat here, because in any case none of opeators has opened it
 	    	}
 	    }
 	    

@@ -271,7 +271,28 @@ class erLhcoreClassSystem{
 
         return null;
     }
-
+    
+    /*
+     * Vulnerability: SC-1628
+     * Name: SSL cookie without secure flag set
+     * Type: Web Servers
+     * Asset Group: Network Segment
+     *
+     * URI: /index.php/chat/startchat
+     * Other Info: PHPSESSID=4fqbt1u2k5ci475ieiku4aaie0; path=/; HttpOnly
+     *
+     * Source: SureCloud
+     */
+    // https://bugs.php.net/bug.php?id=49184
+    // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=730094
+    private static function setSecureCookieIfRequired()
+    {	    
+	    if ( (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') || ((!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] == 'on'))){
+	    	@ini_set('session.cookie_secure',1);
+	    	self::$httpsMode = true;
+	    }	    
+    }
+    
     static function init()
     {
         $index = 'index.php';
@@ -370,23 +391,72 @@ class erLhcoreClassSystem{
         }
 
         $instance->SiteDir    = $siteDir;
-        $instance->WWWDir     = $wwwDir;
+        $instance->WWWDirImages = $instance->WWWDir = $wwwDir;
         $instance->IndexFile  = erConfigClassLhConfig::getInstance()->getSetting( 'site', 'force_virtual_host', false) === false ? '/index.php' : '';
         $instance->RequestURI = str_replace('//','/',$requestUri);
         $instance->QueryString = $queryString;
         $instance->WWWDirLang = '';
+        
+        self::setSecureCookieIfRequired();
     }
-
+    
+    public static function setSiteAccess($siteaccess) {
+    	 
+    	$cfgSite = erConfigClassLhConfig::getInstance();
+    	 
+    	$availableSiteaccess = $cfgSite->getSetting( 'site', 'available_site_access' );
+    	$defaultSiteAccess = $cfgSite->getSetting( 'site', 'default_site_access' );
+    		
+    	if ($defaultSiteAccess != $siteaccess && in_array($siteaccess, $availableSiteaccess)) {
+    		$optionsSiteAccess = $cfgSite->getSetting('site_access_options',$siteaccess);
+    		erLhcoreClassSystem::instance()->Language = $optionsSiteAccess['locale'];
+    		erLhcoreClassSystem::instance()->ThemeSite = $optionsSiteAccess['theme'];
+    		erLhcoreClassSystem::instance()->ContentLanguage = $optionsSiteAccess['content_language'];
+    		erLhcoreClassSystem::instance()->WWWDirLang = '/'.$siteaccess;
+    		erLhcoreClassSystem::instance()->SiteAccess = $siteaccess;
+    	} else {
+    		$optionsSiteAccess = $cfgSite->getSetting('site_access_options',$defaultSiteAccess);
+    		erLhcoreClassSystem::instance()->SiteAccess = $defaultSiteAccess;
+    		erLhcoreClassSystem::instance()->Language = $optionsSiteAccess['locale'];
+    		erLhcoreClassSystem::instance()->ThemeSite = $optionsSiteAccess['theme'];
+    		erLhcoreClassSystem::instance()->WWWDirLang = '';
+    		erLhcoreClassSystem::instance()->ContentLanguage = $optionsSiteAccess['content_language'];
+    	}
+    	 
+    	erTranslationClassLhTranslation::getInstance()->initLanguage();
+    }
+    
+    public static function setSiteAccessByLocale($locale) {
+    	$cfgSite = erConfigClassLhConfig::getInstance();
+    	$site_languages = $cfgSite->getSetting( 'site', 'available_site_access');
+    	foreach ($site_languages as $siteaccess) {    		
+    		$siteAccessOptions =  $cfgSite->getSetting( 'site_access_options', $siteaccess);    		
+    		if ($siteAccessOptions['locale'] == $locale) {
+    			self::setSiteAccess($siteaccess);
+    			break;
+    		}    		
+    	}
+    }
+    
     function wwwDir()
     {
         return $this->WWWDir;
     }
 
+    function wwwImagesDir()
+    {
+    	return $this->WWWDirImages;
+    }
+    
+    public static $httpsMode = false;
+    
     /// The path to where all the code resides
     public $SiteDir;
     /// The access path of the current site view
     /// The relative directory path of the vhless setup
     public $WWWDir;
+        
+    public $WWWDirImages;
 
     // The www dir used in links formating
     public $WWWDirLang;

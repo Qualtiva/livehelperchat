@@ -40,6 +40,7 @@ class erLhcoreClassModelChat {
                'priority'     			=> $this->priority,
                'chat_initiator'     	=> $this->chat_initiator,
                'user_tz_identifier'     => $this->user_tz_identifier,
+               'user_closed_ts'     	=> $this->user_closed_ts,
 
        		   'online_user_id'     	=> $this->online_user_id,
        		   'unread_messages_informed' => $this->unread_messages_informed,
@@ -47,6 +48,7 @@ class erLhcoreClassModelChat {
 
        		   // Wait timeout attribute
                'wait_timeout'     		=> $this->wait_timeout,
+               'wait_timeout_repeat'    => $this->wait_timeout_repeat,
                'wait_timeout_send'     	=> $this->wait_timeout_send,
                'timeout_message'     	=> $this->timeout_message,
 
@@ -72,6 +74,12 @@ class erLhcoreClassModelChat {
                'screenshot_id'    		=> $this->screenshot_id,
        		
                'tslasign'    			=> $this->tslasign,
+           
+               // Visitor language
+               'chat_locale'    		=> $this->chat_locale,
+           
+               // Operator language
+               'chat_locale_to'    		=> $this->chat_locale_to,
        );
    }
 
@@ -101,12 +109,27 @@ class erLhcoreClassModelChat {
 	   	$q->deleteFrom( 'lh_chat_online_user_footprint' )->where( $q->expr->eq( 'chat_id', $this->id ) );
 	   	$stmt = $q->prepare();
 	   	$stmt->execute();
+	   	
+	   	// Delete screen sharing
+	   	$q->deleteFrom( 'lh_cobrowse' )->where( $q->expr->eq( 'chat_id', $this->id ) );
+	   	$stmt = $q->prepare();
+	   	$stmt->execute();
+	   	
+	   	// Delete speech settings
+	   	$q->deleteFrom( 'lh_speech_chat_language' )->where( $q->expr->eq( 'chat_id', $this->id ) );
+	   	$stmt = $q->prepare();
+	   	$stmt->execute();
+	   	
 
 	   	erLhcoreClassModelChatFile::deleteByChatId($this->id);
 
 	   	erLhcoreClassChat::getSession()->delete($this);
 	   	
 	   	erLhcoreClassChat::updateActiveChats($this->user_id);
+	   	
+	   	if ($this->department !== false) {
+	   	    erLhcoreClassChat::updateDepartmentStats($this->department);
+	   	}
    }
 
    public static function fetch($chat_id) {
@@ -145,9 +168,14 @@ class erLhcoreClassModelChat {
        			$this->time_created_front = date('Ymd') == date('Ymd',$this->time) ? date(erLhcoreClassModule::$dateHourFormat,$this->time) : date(erLhcoreClassModule::$dateDateHourFormat,$this->time);
        			return $this->time_created_front;
        		break;
+
+       	case 'user_closed_ts_front':
+       			$this->user_closed_ts_front = date('Ymd') == date('Ymd',$this->user_closed_ts) ? date(erLhcoreClassModule::$dateHourFormat,$this->user_closed_ts) : date(erLhcoreClassModule::$dateDateHourFormat,$this->user_closed_ts);
+       			return $this->user_closed_ts_front;
+       		break;
        	
        	case 'is_operator_typing':
-       		   $this->is_operator_typing = $this->operator_typing > (time()-10); // typing is considered if status did not changed for 30 seconds
+       		   $this->is_operator_typing = $this->operator_typing > (time()-60); // typing is considered if status did not changed for 30 seconds
        		   return $this->is_operator_typing;
        		break;
 
@@ -156,9 +184,18 @@ class erLhcoreClassModelChat {
        		   return $this->is_user_typing;
        		break;
 
+       	case 'wait_time_seconds':
+       		   $this->wait_time_seconds = time() - $this->time;
+       		   return $this->wait_time_seconds;
+
        	case 'wait_time_front':
        		   $this->wait_time_front = erLhcoreClassChat::formatSeconds($this->wait_time);
        		   return $this->wait_time_front;
+       		break;
+
+       	case 'wait_time_pending':
+       		   $this->wait_time_pending = erLhcoreClassChat::formatSeconds(time() - $this->time);
+       		   return $this->wait_time_pending;
        		break;
 
        	case 'chat_duration_front':
@@ -168,6 +205,15 @@ class erLhcoreClassModelChat {
 
        	case 'user_name':
        			return $this->user_name = (string)$this->user;
+       		break;	
+
+       	case 'plain_user_name':
+       	        $this->plain_user_name = false;
+       	        
+       	        if ($this->user !== false) {
+       	            $this->plain_user_name = (string)$this->user->name_support;
+       	        }
+       			return $this->plain_user_name;
        		break;	
        		
        	case 'user':
@@ -266,6 +312,20 @@ class erLhcoreClassModelChat {
        				$this->additional_data_array = $this->additional_data;
        			}
        			return $this->additional_data_array;
+       		break;
+       		
+       	case 'chat_variables_array':
+       	        if (!empty($this->chat_variables)){
+           			$jsonData = json_decode($this->chat_variables,true);
+           			if ($jsonData !== null) {
+           				$this->chat_variables_array = $jsonData;
+           			} else {
+           				$this->chat_variables_array = $this->chat_variables;
+           			}
+       	        } else {
+       	            $this->chat_variables_array = $this->chat_variables;
+       	        }
+       			return $this->chat_variables_array;
        		break;
        			
        	default:
@@ -411,11 +471,20 @@ class erLhcoreClassModelChat {
    
    public $screenshot_id = 0;
    
+   public $wait_timeout_repeat = 0;
+   
    public $unread_messages_informed = 0;
    public $reinform_timeout = 0;
    
+   // Time when user closed a chat window
+   public $user_closed_ts = 0;
+   
    // Time since last assignment
    public $tslasign = 0;
+   
+   public $chat_locale = '';
+   
+   public $chat_locale_to = '';
    
    public $updateIgnoreColumns = array();
 }

@@ -36,12 +36,17 @@ class erLhcoreClassModelChatOnlineUser {
                'invitation_count'   => $this->invitation_count,
                'requires_email'   	=> $this->requires_email,
                'requires_username'  => $this->requires_username,
+               'requires_phone'  	=> $this->requires_phone,
                'dep_id'   			=> $this->dep_id,
                'reopen_chat'   		=> $this->reopen_chat,
 	       	   'operation'   		=> $this->operation,
+	       	   'operation_chat'     => $this->operation_chat,
 	       	   'screenshot_id'   	=> $this->screenshot_id,
 	       	   'online_attr'   		=> $this->online_attr,
-	       	   'visitor_tz'   		=> $this->visitor_tz
+	       	   'online_attr_system' => $this->online_attr_system,
+	       	   'visitor_tz'   		=> $this->visitor_tz,
+	       	   'last_check_time'	=> $this->last_check_time,
+	       	   'notes'	            => $this->notes
        );
    }
 
@@ -96,6 +101,10 @@ class erLhcoreClassModelChatOnlineUser {
 
        	case 'has_message_from_operator':
        	        return ($this->message_seen == 0 && $this->operator_message != '');
+       	    break;
+
+       	case 'notes_intro':
+       	        return $this->notes_intro = $this->notes != '' ? '[ '.mb_substr($this->notes, 0, 50).' ]'.'<br/>' : '';
        	    break;
 
        	case 'chat':
@@ -178,6 +187,11 @@ class erLhcoreClassModelChatOnlineUser {
        			return $this->last_visit_seconds_ago;
        		break;
        		
+       	case 'last_check_time_ago':
+       			$this->last_check_time_ago = time()-$this->last_check_time;
+       			return $this->last_check_time_ago;
+       		break;
+       		
        	case 'visitor_tz_time':
        			$this->visitor_tz_time = '-';
        			if ($this->visitor_tz != ''){
@@ -221,7 +235,15 @@ class erLhcoreClassModelChatOnlineUser {
        		
        		return $this->screenshot;
        		break;
-       			
+
+       	case 'online_attr_system_array':
+       	        $this->online_attr_system_array = array();
+       	        if ($this->online_attr_system != '') {
+       	            $this->online_attr_system_array = json_decode($this->online_attr_system,true);
+       	        }
+       	        return $this->online_attr_system_array;
+       	    break;
+       		
        	default:
        		break;
        }
@@ -370,7 +392,16 @@ class erLhcoreClassModelChatOnlineUser {
 	       			$normalizedObject->country_name = $countryData->raw['country']['names']['en'];
 	       			$normalizedObject->lat = isset($countryData->raw['location']['latitude']) ? $countryData->raw['location']['latitude'] : '0';
 	       			$normalizedObject->lon = isset($countryData->raw['location']['longitude']) ? $countryData->raw['location']['longitude'] : '0';
-	       			$normalizedObject->city = isset($countryData->raw['location']['time_zone']) ? $countryData->raw['location']['time_zone'] : '';
+	       			
+	       			try {
+		       			$normalizedObject->city = $countryData->city->name != '' ? $countryData->city->name : (isset($countryData->raw['location']['time_zone']) ? $countryData->raw['location']['time_zone'] : '');	       			
+		       			$regionName = isset($countryData->raw['mostSpecificSubdivision']['name']) ? ', '.$countryData->raw['mostSpecificSubdivision']['name'] : '';	       			
+		       			$normalizedObject->city .= isset($countryData->mostSpecificSubdivision->isoCode) ? ', '.$countryData->mostSpecificSubdivision->isoCode : '';	
+		       			$normalizedObject->city .= $regionName;	
+       				} catch (Exception $e) {
+       					// Just in case of city error
+       				}
+	       			       			
 	       			return $normalizedObject;     
        			} catch (Exception $e) {
        				return false;
@@ -527,7 +558,8 @@ class erLhcoreClassModelChatOnlineUser {
    public static function handleRequest($paramsHandle = array()) {
 
 	   	if (isset($_SERVER['HTTP_USER_AGENT']) && !self::isBot($_SERVER['HTTP_USER_AGENT'])) {
-
+               $newVisitor = false;
+               
 	           if ( isset($paramsHandle['vid']) && !empty($paramsHandle['vid']) ) {
 	               $items = erLhcoreClassModelChatOnlineUser::getList(array('filter' => array('vid' => $paramsHandle['vid'])));
 	               if (!empty($items)) {
@@ -543,8 +575,14 @@ class erLhcoreClassModelChatOnlineUser {
 	                   		$item->total_visits++;
 	                   		$item->last_visit = time();
 	                   		$item->pages_count = 0;
-	                   		$item->chat_id = 0; // Reset chat id to no chat
-
+	                   		
+	                   		// Reset chat_id only if chat is not active or pending
+	                   		if ($item->chat_id > 0) {
+	                   		    if ($item->chat === false || !in_array($item->chat->status, array(erLhcoreClassModelChat::STATUS_ACTIVE_CHAT,erLhcoreClassModelChat::STATUS_PENDING_CHAT))){
+	                   		        $item->chat_id = 0;
+	                   		    }
+	                   		} 
+	                   			                   		
 	                   		if ($item->message_seen == 1 && $item->message_seen_ts < (time() - ((int)$paramsHandle['message_seen_timeout']*3600))) {
 	                   			$item->message_seen = 0;
 	                   			$item->message_seen_ts = 0;
@@ -553,8 +591,13 @@ class erLhcoreClassModelChatOnlineUser {
 	                   }
 
 	                   $item->identifier = (isset($paramsHandle['identifier']) && !empty($paramsHandle['identifier'])) ? $paramsHandle['identifier'] : $item->identifier;
-	                   $item->dep_id =  (isset($paramsHandle['department'])) ? (int)$paramsHandle['department'] : $item->dep_id;
 	                   
+	                   if (isset($paramsHandle['department']) && is_array($paramsHandle['department']) && count($paramsHandle['department']) == 1){
+	                   		$item->dep_id = array_shift($paramsHandle['department']);
+	                   } elseif (isset($paramsHandle['department']) && is_numeric($paramsHandle['department'])){
+	                   		$item->dep_id = (int)$paramsHandle['department'];
+	                   }
+	                   	                   
 	               } else {
 	                   $item = new erLhcoreClassModelChatOnlineUser();
 	                   $item->ip = erLhcoreClassIPDetect::getIP();
@@ -562,8 +605,13 @@ class erLhcoreClassModelChatOnlineUser {
 	                   $item->identifier = (isset($paramsHandle['identifier']) && !empty($paramsHandle['identifier'])) ? $paramsHandle['identifier'] : '';
 	                   $item->referrer = isset($_GET['r']) ? rawurldecode($_GET['r']) : '';
 	                   $item->total_visits = 1;
-	                   $item->dep_id =  (isset($paramsHandle['department'])) ? (int)$paramsHandle['department'] : 0;
-
+	                   	                	                   
+	                   if (isset($paramsHandle['department']) && is_array($paramsHandle['department']) && count($paramsHandle['department']) == 1){
+	                   		$item->dep_id = array_shift($paramsHandle['department']);
+	                   } elseif (isset($paramsHandle['department']) && is_numeric($paramsHandle['department'])){
+	                   		$item->dep_id = (int)$paramsHandle['department'];
+	                   }
+	                   	                   
 	                   if (isset($paramsHandle['tz']) && is_numeric($paramsHandle['tz'])) {
 		                   	$timezone_name = timezone_name_from_abbr(null, (int)$paramsHandle['tz']*3600, true);
 		                   	if ($timezone_name !== false) {
@@ -577,6 +625,8 @@ class erLhcoreClassModelChatOnlineUser {
 	                   self::cleanupOnlineUsers();
 
 	                   $item->store_chat = true;
+	                   
+	                   $newVisitor = true;
 	               }
 	           } else {
 		               self::cleanupOnlineUsers();
@@ -588,12 +638,8 @@ class erLhcoreClassModelChatOnlineUser {
 	           		$item->tt_pages_count++;
 	           		$item->store_chat = true;
 	           		
-	           		if ( isset($_GET['onattr']) && is_array($_GET['onattr']) && !(empty($_GET['onattr'])) ) {
-	           			$stringOnlineAttr = array();
-	           			foreach ($_GET['onattr'] as $field => $value){
-	           				$stringOnlineAttr[] = $field.' - '.$value;
-	           			}
-	           			$item->online_attr = implode("\n", $stringOnlineAttr);
+	           		if ( isset($_GET['onattr']) && is_array($_GET['onattr']) && !(empty($_GET['onattr'])) ) {	           			
+	           			$item->online_attr = json_encode($_GET['onattr']);
 	           		}
 	           		
 	           		if ($item->has_message_from_operator == true) {
@@ -614,6 +660,8 @@ class erLhcoreClassModelChatOnlineUser {
 	           		}
 	           }
 
+	           $logPageView = false;
+	           
 	           // Update variables only if it's not JS to check for operator message
 	           if (!isset($paramsHandle['check_message_operator']) || (isset($paramsHandle['pages_count']) && $paramsHandle['pages_count'] == true)) {
 	           		$item->user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
@@ -621,16 +669,24 @@ class erLhcoreClassModelChatOnlineUser {
 	           		$item->page_title = isset($_GET['dt']) ? (string)rawurldecode($_GET['dt']) : '';
 	           		$item->last_visit = time();
 	           		$item->store_chat = true;
+	           		$logPageView = true;
 	           }
 
-	           if ($item->operator_message == '' && isset($paramsHandle['pro_active_invite']) && $paramsHandle['pro_active_invite'] == 1 && isset($paramsHandle['pro_active_limitation']) && ($paramsHandle['pro_active_limitation'] == -1 || erLhcoreClassChat::getPendingChatsCountPublic((isset($paramsHandle['department']) && $paramsHandle['department'] > 0) ? (int)$paramsHandle['department'] : false) <= $paramsHandle['pro_active_limitation']) ) {
+	           if ($item->operator_message == '' && isset($paramsHandle['pro_active_invite']) && $paramsHandle['pro_active_invite'] == 1 && isset($paramsHandle['pro_active_limitation']) && ($paramsHandle['pro_active_limitation'] == -1 || erLhcoreClassChat::getPendingChatsCountPublic($item->dep_id > 0 ? $item->dep_id : false) <= $paramsHandle['pro_active_limitation']) ) {
 	           		//Process pro active chat invitation if this visitor matches any rules
 	           		erLhAbstractModelProactiveChatInvitation::processProActiveInvitation($item);
 	           }
 
 	           // Save only then we have to, in general only then page view appears
 	           if ($item->store_chat == true) {
+	           		$item->last_check_time = time();
 	           		$item->saveThis();
+	           		
+	           		if ($newVisitor == true) {
+	           		    erLhcoreClassChatEventDispatcher::getInstance()->dispatch('onlineuser.created', array('ou' => & $item));
+	           		} elseif ($logPageView == true) {
+	           			erLhcoreClassChatEventDispatcher::getInstance()->dispatch('onlineuser.pageview_logged', array('ou' => & $item));
+	           		}
 	           }
 
 	           return $item;
@@ -688,8 +744,13 @@ class erLhcoreClassModelChatOnlineUser {
    public $invitation_seen_count = 0;
    public $screenshot_id = 0;
    public $operation = '';
+   public $operation_chat = '';
    public $online_attr = '';
+   public $online_attr_system = '';
    public $visitor_tz = '';
+   public $notes = '';
+   public $requires_phone = 0;
+   public $last_check_time = 0;
       
    
    // 0 - do not reopen

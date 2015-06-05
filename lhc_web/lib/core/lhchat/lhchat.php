@@ -50,6 +50,7 @@ class erLhcoreClassChat {
 			'operator_typing_id',
 			'chat_initiator',
 			'chat_variables',
+			'wait_timeout_repeat',
 			// Angular remake
 			'referrer'
 	);
@@ -114,8 +115,10 @@ class erLhcoreClassChat {
     	$filter = array();
     	$filter['filter'] = array('status' => 0);
 
-    	if ($department !== false) {
+    	if ($department !== false && is_numeric($department)) {
     		$filter['filter']['dep_id'] = $department;
+    	} elseif ($department !== false && is_array($department)) {
+    		$filter['filterin']['dep_id'] = $department;
     	}
 
     	return self::getCount($filter);
@@ -375,11 +378,24 @@ class erLhcoreClassChat {
     		}
     	}
 
+    	if (isset($params['leftjoin']) && count($params['leftjoin']) > 0) {
+    	    foreach ($params['leftjoin'] as $table => $joinOn) {
+    	        $q->leftJoin($table, $q->expr->eq($joinOn[0], $joinOn[1]));
+    	    }
+    	}
+    	
+    	if (isset($params['innerjoin']) && count($params['innerjoin']) > 0) {
+    	    foreach ($params['innerjoin'] as $table => $joinOn) {
+    	        $q->innerJoin($table, $q->expr->eq($joinOn[0], $joinOn[1]));
+    	    }
+    	}
+    	
     	if ( count($conditions) > 0 )
     	{
 	    	$q->where( $conditions );
     	}
 
+    	
     	if (isset($params['use_index'])) {
     		$q->useIndex( $params['use_index'] );
     	}
@@ -427,7 +443,10 @@ class erLhcoreClassChat {
     		$filter['customfilter'][] = $limitation;
     		$filter['use_index'] = 'has_unread_messages_dep_id_id';
     	}
-
+    	
+    	// Give 5 seconds to operator to sync a chat and avoid annoying him
+    	$filter['filterlt']['last_user_msg_time'] = time()-5;
+    	
     	$filter['limit'] = $limit;
     	$filter['offset'] = $offset;
     	$filter['smart_select'] = true;
@@ -644,8 +663,8 @@ class erLhcoreClassChat {
 					$stmt = $db->prepare("SELECT COUNT(id) AS found FROM lh_departament WHERE online_hours_active = 1 AND start_hour <= :start_hour AND end_hour > :end_hour AND {$daysColumns[$columns]} = 1 AND id IN (". implode(',', $dep_id) .")");
 				}
 				
-				$stmt->bindValue(':start_hour',date('G'),PDO::PARAM_INT);
-				$stmt->bindValue(':end_hour',date('G'),PDO::PARAM_INT);
+				$stmt->bindValue(':start_hour',date('G').date('i'),PDO::PARAM_INT);
+				$stmt->bindValue(':end_hour',date('G').date('i'),PDO::PARAM_INT);
 				$stmt->execute();
 				$rowsNumber = $stmt->fetchColumn();
 			}					
@@ -663,8 +682,8 @@ class erLhcoreClassChat {
            		$daysColumns = array('`mod`','`tud`','`wed`','`thd`','`frd`','`sad`','`sud`');           		
            		$columns = date('N')-1;           		
 	           	$stmt = $db->prepare("SELECT COUNT(id) AS found FROM lh_departament WHERE online_hours_active = 1 AND start_hour <= :start_hour AND end_hour > :end_hour AND {$daysColumns[$columns]} = 1");
-	           	$stmt->bindValue(':start_hour',date('G'),PDO::PARAM_INT);
-	           	$stmt->bindValue(':end_hour',date('G'),PDO::PARAM_INT);
+	           	$stmt->bindValue(':start_hour',date('G').date('i'),PDO::PARAM_INT);
+	           	$stmt->bindValue(':end_hour',date('G').date('i'),PDO::PARAM_INT);
 	           	$stmt->execute();
 	           	$rowsNumber = $stmt->fetchColumn();	   
            }
@@ -904,7 +923,7 @@ class erLhcoreClassChat {
 
             if (in_array($chat->dep_id,$userDepartaments)) {
 
-            	if ($currentUser->hasAccessTo('lhchat','allowopenremotechat') == true){
+            	if ($currentUser->hasAccessTo('lhchat','allowopenremotechat') == true || $chat->status == erLhcoreClassModelChat::STATUS_OPERATORS_CHAT){
             		return true;
             	} elseif ($chat->user_id == 0 || $chat->user_id == $currentUser->getUserID()) {
             		return true;
@@ -1020,11 +1039,31 @@ class erLhcoreClassChat {
 	   	
 	   	erLhcoreClassChatEventDispatcher::getInstance()->dispatch('chat.close',array('chat' => & $chat, 'user_data' => $operator));
 	   	
-	   	if ( ($dep = $chat->department) !== false && $dep->inform_close == 1) {
+	   	$dep = $chat->department;
+	   	
+	   	if ( $dep !== false) {
+	   	    self::updateDepartmentStats($dep);
+	   	}
+	   	
+	   	if ( $dep !== false && $dep->inform_close == 1) {
 	   		erLhcoreClassChatMail::informChatClosed($chat, $operator);
 	   	}
    }
 
+   /**
+    * Update department main statistic for frontend
+    * */
+   public static function updateDepartmentStats($dep) {
+       $db = ezcDbInstance::get();
+       $stmt = $db->prepare('UPDATE lh_departament SET active_chats_counter = :active_chats_counter, pending_chats_counter = :pending_chats_counter, closed_chats_counter = :closed_chats_counter WHERE id = :id');
+       $stmt->bindValue(':active_chats_counter',erLhcoreClassChat::getCount(array('filter' => array('dep_id' => $dep->id, 'status' => erLhcoreClassModelChat::STATUS_ACTIVE_CHAT))),PDO::PARAM_INT);
+       $stmt->bindValue(':pending_chats_counter',erLhcoreClassChat::getCount(array('filter' => array('dep_id' => $dep->id, 'status' => erLhcoreClassModelChat::STATUS_PENDING_CHAT))),PDO::PARAM_INT);
+       $stmt->bindValue(':closed_chats_counter',erLhcoreClassChat::getCount(array('filter' => array('dep_id' => $dep->id, 'status' => erLhcoreClassModelChat::STATUS_CLOSED_CHAT))),PDO::PARAM_INT);
+       $stmt->bindValue(':id',$dep->id,PDO::PARAM_INT);
+       $stmt->execute();
+       
+   }
+   
    public static function canReopen(erLhcoreClassModelChat $chat, $skipStatusCheck = false) {
    		if ( ($chat->status == erLhcoreClassModelChat::STATUS_CLOSED_CHAT || $skipStatusCheck == true)) {
 			if ($chat->last_user_msg_time > time()-600 || $chat->last_user_msg_time == 0){
@@ -1069,6 +1108,14 @@ class erLhcoreClassChat {
    				$object->{$attr} = null;
    			};
    			
+   			if (isset($params['remove_all']) && $params['remove_all'] == true) {
+   			    foreach ($object as $attr => $value) {
+   			        if (!in_array($attr, $attrs)) {
+   			            $object->$attr = null;
+   			        }
+   			    }
+   			}
+   			
    			if (!isset($params['do_not_clean']))
    			$object = (object)array_filter((array)$object);
    		}
@@ -1091,6 +1138,11 @@ class erLhcoreClassChat {
    			$object = (object)array_filter((array)$object);   		
    }
    
+   public static function validateFilterIn(& $params) {
+   		foreach ($params as & $param) {
+   			$param = (int)$param;
+   		}
+   }
    
    public static function updateActiveChats($user_id)
    {
@@ -1101,6 +1153,84 @@ class erLhcoreClassChat {
 	   	$stmt->execute();
    }
    
+   public static function getAdjustment($geo_adjustment, $onlineUserVid = '', $widgetMode = false, $onlineUserDefined = false){
+   	
+   		$responseStatus = array('status' => 'normal');
+   		$onlineUser = false;
+   		
+	   	if (isset($geo_adjustment['use_geo_adjustment']) && $geo_adjustment['use_geo_adjustment'] == true){
+	   	
+	   		if ($widgetMode === true && $geo_adjustment['apply_widget'] == 0){
+	   			return $responseStatus;
+	   		}
+	   		
+	   		if (is_object($onlineUserDefined)){
+	   			$onlineUser = $onlineUserDefined;
+	   		} elseif (!empty($onlineUserVid)){
+	   			$onlineUser = erLhcoreClassModelChatOnlineUser::fetchByVid($onlineUserVid);
+	   		}
+	   			   		
+	   		if ($onlineUser === false) {	   		
+		   		$onlineUser = new erLhcoreClassModelChatOnlineUser(); // Just to pass instance
+		   		$onlineUser->ip = erLhcoreClassIPDetect::getIP();
+		   		erLhcoreClassModelChatOnlineUser::detectLocation($onlineUser);
+	   		}
+	   			   		
+	   		$countriesAvailableFor = array();
+	   		if ($geo_adjustment['available_for'] != '') {
+	   			$countriesAvailableFor = explode(',', $geo_adjustment['available_for']);
+	   		}
+	   	
+	   		if (!in_array($onlineUser->user_country_code, $countriesAvailableFor)){
+	   			if ($geo_adjustment['other_countries'] == 'all') {
+	   				if (($geo_adjustment['other_status']) == 'offline'){	   				
+	   					$responseStatus = array('status' => 'offline');
+	   				} else {
+	   					$responseStatus = array('status' => 'hidden');
+	   				}
+	   			} else {
+	   				if ($geo_adjustment['hide_for'] != '') {
+	   					$countrieshideFor = explode(',', $geo_adjustment['hide_for']);
+	   					if (in_array($onlineUser->user_country_code, $countrieshideFor)){
+	   						if (($geo_adjustment['other_status']) == 'offline'){
+	   							$responseStatus = array('status' => 'offline');
+	   						} else {
+	   							$responseStatus = array('status' => 'hidden');
+	   						}
+	   					} else {
+	   						if (($geo_adjustment['rest_status']) == 'offline'){
+	   							$responseStatus = array('status' => 'offline');
+	   						} elseif ($geo_adjustment['rest_status'] == 'normal') {
+	   							$responseStatus = array('status' => 'normal');
+	   						} else {
+	   							$responseStatus = array('status' => 'hidden');
+	   						}
+	   					}
+	   				} else {
+	   					if (($geo_adjustment['rest_status']) == 'offline'){
+   							$responseStatus = array('status' => 'offline');
+	   					} elseif ($geo_adjustment['rest_status'] == 'normal') {
+   							$responseStatus = array('status' => 'normal');
+   						} else {
+   							$responseStatus = array('status' => 'hidden');
+   						}
+	   				}
+	   			}
+	   		} // Normal status
+	   	}
+
+	   	return $responseStatus;
+   }
+   
+   public static function getChatDurationToUpdateChatID($chatID){
+	   	$sql = 'SELECT ((SELECT MAX(lh_msg.time) FROM lh_msg WHERE lh_msg.chat_id = lh_chat.id AND lh_msg.user_id = 0)-(lh_chat.time+lh_chat.wait_time)) AS chat_duration_counted FROM lh_chat WHERE lh_chat.id = :chat_id';
+	   	$db = ezcDbInstance::get();
+	   	$stmt = $db->prepare($sql);
+	   	$stmt->bindValue(':chat_id',$chatID);
+	   	$stmt->execute();
+	   	$time = $stmt->fetchColumn();
+   	   	return $time > 0 ? $time : 0;   		
+   }
    
    private static $persistentSession;
 }

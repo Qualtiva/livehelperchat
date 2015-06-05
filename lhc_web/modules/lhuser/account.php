@@ -34,6 +34,40 @@ if (erLhcoreClassUser::instance()->hasAccessTo('lhuser','allowtochoosependingmod
 	$tpl->set('tab','tab_pending');
 }
 
+if (erLhcoreClassUser::instance()->hasAccessTo('lhspeech','changedefaultlanguage') && isset($_POST['UpdateSpeech_account']))
+{	
+	if (!isset($_POST['csfr_token']) || !$currentUser->validateCSFRToken($_POST['csfr_token'])) {
+		erLhcoreClassModule::redirect('user/account');
+		exit;
+	}
+	
+	$definition = array(
+			'select_language' => new ezcInputFormDefinitionElement(
+					ezcInputFormDefinitionElement::OPTIONAL, 'int',array('min_range' => 1)
+			),
+			'select_dialect' => new ezcInputFormDefinitionElement(
+					ezcInputFormDefinitionElement::OPTIONAL, 'string'
+			),
+	);
+	
+	$form = new ezcInputForm( INPUT_POST, $definition );
+	$Errors = array();
+	
+	if ( $form->hasValidData( 'select_language' ) )	{	  
+	    erLhcoreClassModelUserSetting::setSetting('speech_language',$form->select_language);
+	} else {
+	    erLhcoreClassModelUserSetting::setSetting('speech_language','');
+	}
+	
+	if ( $form->hasValidData( 'select_dialect' ) && $form->hasValidData( 'select_dialect' ) != '0' )	{
+	    erLhcoreClassModelUserSetting::setSetting('speech_dialect',$form->select_dialect);
+	} else {
+	   erLhcoreClassModelUserSetting::setSetting('speech_dialect','');
+	}
+
+	$tpl->set('account_updated','done');
+	$tpl->set('tab','tab_speech');
+}
 
 if (erLhcoreClassUser::instance()->hasAccessTo('lhuser','change_visibility_list') && isset($_POST['UpdateTabsSettings_account']))
 {
@@ -128,6 +162,9 @@ if (isset($_POST['Update']))
    		),
    		'UserInvisible' => new ezcInputFormDefinitionElement(
    				ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
+   		),
+   		'ReceivePermissionRequest' => new ezcInputFormDefinitionElement(
+   				ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
    		)
     );
 
@@ -197,6 +234,14 @@ if (isset($_POST['Update']))
 	    }
     }
     
+    if ( erLhcoreClassUser::instance()->hasAccessTo('lhuser','receivepermissionrequest') ) {
+	    if ( $form->hasValidData( 'ReceivePermissionRequest' ) && $form->ReceivePermissionRequest == true ) {
+	    	$UserData->rec_per_req = 1;
+	    } else {
+	    	$UserData->rec_per_req = 0;
+	    }
+    }
+    
     if ( $form->hasValidData( 'XMPPUsername' ) && $form->XMPPUsername != '')
     {
     	$UserData->xmpp_username = $form->XMPPUsername;
@@ -220,22 +265,31 @@ if (isset($_POST['Update']))
     	
     	erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_path',array('dir' => & $dir,'storage_id' => $UserData->id));
     	
-    	erLhcoreClassFileUpload::mkdirRecursive( $dir );
-
-    	$file = qqFileUploader::upload($_FILES,'UserPhoto',$dir);
-
+    	$response = erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_store', array('file_post_variable' => 'UserPhoto', 'dir' => & $dir, 'storage_id' => $UserData->id));
+    	
+    	// There was no callbacks
+    	if ($response === false) {
+    		erLhcoreClassFileUpload::mkdirRecursive( $dir );
+    		$file = qqFileUploader::upload($_FILES,'UserPhoto',$dir);
+    	} else {
+    		$file = $response['data'];
+    	}
+    	
     	if ( !empty($file["errors"]) ) {
     		foreach ($file["errors"] as $err) {
     			$Errors[] = $err;
     		}
     	} else {
-
     		$UserData->removeFile();
     		$UserData->filename           = $file["data"]["filename"];
     		$UserData->filepath           = $file["data"]["dir"];
-
-    		erLhcoreClassImageConverter::getInstance()->converter->transform( 'photow_150', $UserData->file_path_server, $UserData->file_path_server );
-    		chmod($UserData->file_path_server, 0644);
+    		
+    		$response = erLhcoreClassChatEventDispatcher::getInstance()->dispatch('user.edit.photo_resize_150', array('mime_type' => $file["data"]['mime_type'],'user' => $UserData));
+    		
+    		if ($response === false) {
+    			erLhcoreClassImageConverter::getInstance()->converter->transform( 'photow_150', $UserData->file_path_server, $UserData->file_path_server );
+    			chmod($UserData->file_path_server, 0644);
+    		}    		
     	}
     }
 
@@ -279,13 +333,14 @@ if ($allowEditDepartaments && isset($_POST['UpdateDepartaments_account']))
        $UserData->all_departments = 0;
    }
 
-   erLhcoreClassUser::getSession()->update($UserData);
-
    if (isset($_POST['UserDepartament']) && count($_POST['UserDepartament']) > 0)
    {
        $globalDepartament = array_merge($_POST['UserDepartament'],$globalDepartament);
    }
-
+      
+   $UserData->departments_ids = implode(',', $globalDepartament);
+   erLhcoreClassUser::getSession()->update($UserData);
+      
    if (count($globalDepartament) > 0) {
        erLhcoreClassUserDep::addUserDepartaments($globalDepartament,false,$UserData);
    } else {
@@ -328,55 +383,18 @@ if ( erLhcoreClassUser::instance()->hasAccessTo('lhuser','personalcannedmsg') ) 
 	}
 	
 	if (isset($_POST['Save_canned_action']))
-	{
-		$definition = array(
-				'Message' => new ezcInputFormDefinitionElement(
-						ezcInputFormDefinitionElement::OPTIONAL, 'unsafe_raw'
-				),
-				'Position' => new ezcInputFormDefinitionElement(
-						ezcInputFormDefinitionElement::OPTIONAL, 'int',array('min_range' => 0)
-				),
-				'Delay' => new ezcInputFormDefinitionElement(
-						ezcInputFormDefinitionElement::OPTIONAL, 'int',array('min_range' => 0)
-				),
-		        'AutoSend' => new ezcInputFormDefinitionElement(
-		            ezcInputFormDefinitionElement::OPTIONAL, 'boolean'
-		        )
-		);
-		
-		$form = new ezcInputForm( INPUT_POST, $definition );
-		$Errors = array();
-		
-		if ( !$form->hasValidData( 'Message' ) || $form->Message == '' )
-		{
-			$Errors[] =  erTranslationClassLhTranslation::getInstance()->getTranslation('chat/cannedmsg','Please enter canned message');
-		}
-		
-		if ( $form->hasValidData( 'Position' )  )
-		{
-			$cannedMessage->position = $form->Position;
-		}
-		
-		if ( $form->hasValidData( 'Delay' )  )
-		{
-			$cannedMessage->delay = $form->Delay;
-		}
-		
-		if ( $form->hasValidData( 'AutoSend' ) && $form->AutoSend == true )
-		{
-			$cannedMessage->auto_send = 1;
-		} else {
-			$cannedMessage->auto_send = 0;
-		}
-		
-		if (count($Errors) == 0) {
-			$cannedMessage->msg = $form->Message;
+	{	
+		$Errors = erLhcoreClassAdminChatValidatorHelper::validateCannedMessage($cannedMessage, true);
+				
+		if (count($Errors) == 0) {		
 			$cannedMessage->user_id = $UserData->id;
 			$cannedMessage->saveThis();			
 			$tpl->set('updated_canned',true);
 		}  else {
 			$tpl->set('errors_canned',$Errors);
 		}
+		
+		$tpl->set('tab','tab_canned');
 	}
 	
 	/**
@@ -401,7 +419,7 @@ if ( erLhcoreClassUser::instance()->hasAccessTo('lhuser','personalcannedmsg') ) 
 		exit;
 	}
 	
-	$tpl->set('canned_msg',$cannedMessage);
+	$tpl->set('canned_msg',$cannedMessage);	
 }
 
 
